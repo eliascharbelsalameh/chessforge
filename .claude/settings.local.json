@@ -28,7 +28,8 @@
       "Bash(node tools/build_openings.mjs)",
       "Bash(systemctl is-active *)",
       "Bash(systemctl is-enabled *)",
-      "Bash(curl -s http://localhost:8420/api/health)"
+      "Bash(curl -s http://localhost:8420/api/health)",
+      "Bash(gh auth *)"
     ]
   }
 }
