@@ -1,0 +1,15 @@
+[Unit]
+Description=ChessForge chess learning platform
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/repos/chess
+ExecStart=/usr/local/bin/node server.js
+Restart=always
+RestartSec=3
+Environment=PORT=8420
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,5 @@
+# personal progress data — never ship this when sharing the project
+userdata/
+
+node_modules/
+*.log

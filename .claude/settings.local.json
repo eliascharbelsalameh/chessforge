@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "Bash(python3 -V)",
+      "Bash(zstd --version)",
+      "Bash(git --version)",
+      "Bash(sudo -n true)",
+      "Bash(awk '{print $4}')",
+      "Bash(grep -oE '[0-9]+$')",
+      "Bash(curl -sI --max-time 15 https://database.lichess.org/lichess_db_puzzle.csv.zst)",
+      "Bash(curl -sS --retry 3 -o /tmp/claude-1001/-home-ubuntu-repos-chess/c4ec2177-0ced-4d2d-bfda-dafe51c6bfc2/scratchpad/lichess_db_puzzle.csv.zst https://database.lichess.org/lichess_db_puzzle.csv.zst)",
+      "Bash(curl -s \"https://data.jsdelivr.com/v1/packages/npm/chess.js/resolved?specifier=1\")",
+      "Bash(curl -s \"https://data.jsdelivr.com/v1/packages/npm/chessground/resolved?specifier=latest\")",
+      "Bash(curl -s \"https://data.jsdelivr.com/v1/packages/npm/stockfish/resolved?specifier=latest\")",
+      "Bash(curl -s \"https://data.jsdelivr.com/v1/packages/npm/stockfish@18.0.8\")",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s \"https://data.jsdelivr.com/v1/packages/npm/stockfish@18.0.8\" -o /tmp/claude-1001/-home-ubuntu-repos-chess/c4ec2177-0ced-4d2d-bfda-dafe51c6bfc2/scratchpad/sf_files.json)",
+      "Bash(npm pack *)",
+      "Bash(curl -sS --retry 2 -o stockfish.tgz https://registry.npmjs.org/stockfish/-/stockfish-18.0.8.tgz)",
+      "Bash(mkdir -p pkg)",
+      "Bash(tar -xzf chess.js-1.4.0.tgz -C pkg --transform 's|^package|chessjs|')",
+      "Bash(tar -xzf chessground-9.2.1.tgz -C pkg --transform 's|^package|chessground|')",
+      "Bash(tar -tzf stockfish.tgz)",
+      "Bash(grep -vE '\\\\.\\(md|json\\)$')",
+      "Bash(tar -xzf stockfish.tgz package/bin/stockfish-18-lite-single.js package/bin/stockfish-18-lite-single.wasm package/bin/stockfish-18-asm.js package/Copying.txt)",
+      "Bash(cp -r /tmp/claude-1001/-home-ubuntu-repos-chess/c4ec2177-0ced-4d2d-bfda-dafe51c6bfc2/scratchpad/openings tools/openings-src)",
+      "Bash(node tools/build_openings.mjs)",
+      "Bash(systemctl is-active *)",
+      "Bash(systemctl is-enabled *)",
+      "Bash(curl -s http://localhost:8420/api/health)"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "chessforge",
+  "version": "1.0.0",
+  "description": "Self-hosted chess learning platform: puzzles, openings, endgames, lessons, play, analysis",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tools/test_all.mjs",
+    "build:openings": "node tools/build_openings.mjs"
+  },
+  "license": "GPL-3.0"
+}
