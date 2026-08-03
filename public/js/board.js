@@ -40,7 +40,12 @@ export class Board {
     });
     this.chess = null;
     this.movableColor = undefined;
-    this.ro = new ResizeObserver(() => this.cg.redrawAll());
+    this.promoOverlay = null;
+    this.ro = new ResizeObserver(() => {
+      this.cg.redrawAll();
+      // redrawAll re-renders the wrap from scratch — put an open picker back.
+      if (this.promoOverlay) this.cgEl.append(this.promoOverlay);
+    });
     this.ro.observe(container);
   }
 
@@ -95,14 +100,16 @@ export class Board {
       const leftPct = (orient === 'white' ? fileIdx : 7 - fileIdx) * 12.5;
       const fromTop = (orient === 'white') === (dest[1] === '8');
       const col = el('div', { class: 'promo-col', style: `left:${leftPct}%; ${fromTop ? 'top:0' : 'bottom:0; flex-direction:column-reverse'}` });
+      const close = (letter) => { this.promoOverlay = null; overlay.remove(); resolve(letter); };
       for (const p of PROMO_PIECES) {
         const btn = el('piece', { class: `${color} ${p}`, role: 'button', 'aria-label': p });
-        btn.addEventListener('click', (e) => { e.stopPropagation(); overlay.remove(); resolve(PROMO_LETTER[p]); });
+        btn.addEventListener('click', (e) => { e.stopPropagation(); close(PROMO_LETTER[p]); });
         col.append(btn);
       }
-      overlay.addEventListener('click', () => { overlay.remove(); resolve(null); });
+      overlay.addEventListener('click', () => close(null));
       overlay.append(col);
-      this.cgEl.querySelector('.cg-wrap').append(overlay);
+      this.promoOverlay = overlay;
+      this.cgEl.append(overlay); // Chessground puts .cg-wrap ON cgEl, not inside it
     });
   }
 

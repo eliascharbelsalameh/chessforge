@@ -195,6 +195,7 @@ cg-board { border-radius: 6px; }
 .promo-col piece {
   position: static;
   display: block;
+  pointer-events: auto; /* vendored .cg-wrap piece sets none */
   width: 100%;
   aspect-ratio: 1;
   background-size: cover;
