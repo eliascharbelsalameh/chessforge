@@ -21,7 +21,13 @@ function defaults() {
     endgames: { drills: {}, _ts: 0 }, // drillId -> {done, attempts, ts}
     lessons: { done: {}, _ts: 0 },   // lessonId -> ts
     play: { games: [], _ts: 0 },     // [{color, level, result, ts}] capped
-    settings: { autoSync: true, showDests: true, animate: true, engineMoveMs: 350, _ts: 0 },
+    settings: {
+      autoSync: true, showDests: true, animate: true,
+      enginePace: 'human',            // see pacing.js PACES
+      voiceover: false,               // read lessons aloud (speech.js)
+      voiceURI: '', voiceRate: 1,
+      _ts: 0,
+    },
   };
 }
 

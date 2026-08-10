@@ -24,6 +24,8 @@ const { THEMES, PICKER_THEMES } = await import('../public/js/content/themes.js')
 const { INTERVALS, initEntry, applyReview, isDue } = await import('../public/js/srs.js');
 const util = await import('../public/js/util.js');
 const state = await import('../public/js/state.js');
+const pacing = await import('../public/js/pacing.js');
+const speechMod = await import('../public/js/speech.js');
 
 // ---------- 1. repertoire lines replay ----------
 console.log('\n[1] Repertoires');
@@ -172,6 +174,66 @@ e = applyReview(e, false);
 ok(e.idx === 0 && e.lapses === 1, 'srs lapse resets');
 for (let i = 0; i < 20; i++) e = applyReview(e, true);
 ok(e.idx === INTERVALS.length - 1, 'srs caps at max interval');
+
+// engine pacing model
+{
+  const { thinkingMs, phaseFromFen, remainingMs, PACES } = pacing;
+  const mid = 'r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4';
+  const half = () => 0.5; // no jitter, no long think
+  ok(thinkingMs({ pace: 'instant', fen: mid, rand: half }) === 0, 'instant pace never waits');
+  const human = thinkingMs({ pace: 'human', fen: mid, legalMoves: 30, rand: half });
+  ok(human > 280 && human < 1600, `human pace is a believable pause (got ${human})`);
+  ok(thinkingMs({ pace: 'relaxed', fen: mid, rand: half }) > thinkingMs({ pace: 'brisk', fen: mid, rand: half }), 'relaxed > brisk');
+  ok(thinkingMs({ pace: 'human', fen: mid, level: 8, rand: half }) > thinkingMs({ pace: 'human', fen: mid, level: 1, rand: half }), 'stronger levels ponder longer');
+  ok(thinkingMs({ pace: 'human', fen: mid, legalMoves: 42, rand: half }) > thinkingMs({ pace: 'human', fen: mid, legalMoves: 8, rand: half }), 'busier positions take longer');
+  ok(thinkingMs({ pace: 'human', fen: mid, recapture: true, rand: half }) < human, 'recaptures come back fast');
+  const opening = thinkingMs({ pace: 'human', fen: new Chess().fen(), legalMoves: 20, rand: half });
+  ok(opening < thinkingMs({ pace: 'human', fen: mid, legalMoves: 20, rand: half }), 'opening moves are quick');
+  ok(thinkingMs({ pace: 'human', fen: mid, legalMoves: 1, rand: half }) <= 400, 'only-move is near-instant');
+  for (const p of PACES) {
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < 400; i++) {
+      const v = thinkingMs({ pace: p.id, fen: mid, legalMoves: 30 });
+      lo = Math.min(lo, v); hi = Math.max(hi, v);
+    }
+    ok(lo >= 0 && hi <= 9000, `${p.id}: stays inside sane bounds (${lo}-${hi}ms)`);
+    ok(p.id === 'instant' || hi > lo, `${p.id}: pauses vary between moves`);
+  }
+  ok(phaseFromFen(new Chess().fen()).pieces === 32 && phaseFromFen(new Chess().fen()).ply === 0, 'phase from startpos');
+  ok(phaseFromFen('8/P6k/8/8/8/8/8/K7 b - - 0 12').ply === 23, 'ply counts black to move');
+  ok(remainingMs(1000, 300) === 700 && remainingMs(200, 900) === 0, 'remaining wait never negative');
+}
+
+// lesson voiceover text
+{
+  const { sanToWords, speakableText, chunkText, expandNotation } = speechMod;
+  ok(sanToWords('e4') === 'e 4', 'pawn move spoken');
+  ok(sanToWords('Nxe5+') === 'knight takes e 5, check', 'capture with check spoken');
+  ok(sanToWords('Qd8#') === 'queen d 8, checkmate', 'mate spoken');
+  ok(sanToWords('O-O') === 'castles kingside' && sanToWords('O-O-O') === 'castles queenside', 'castling spoken');
+  ok(sanToWords('a8=Q').includes('promotes to queen'), 'promotion spoken');
+  ok(sanToWords('Rfe1') === 'rook f e 1', 'disambiguated move spoken');
+  ok(sanToWords('hello') === null && sanToWords('') === null, 'non-moves rejected');
+  const spoken = speakableText('<p>Play <b>1.e4</b>!</p><ol><li>Then <b>Nf3</b>.</li></ol>');
+  ok(!/[<>]/.test(spoken), 'html stripped');
+  ok(spoken.includes('knight f 3'), 'notation expanded inside prose');
+  ok(!/\.\s*\./.test(spoken), 'no doubled sentence breaks');
+  ok(speakableText('Black&rsquo;s rook &amp; king').includes('’') && speakableText('a &amp; b').includes('&') === true, 'entities decoded');
+  ok(expandNotation('The Bad move') === 'The Bad move', 'plain words untouched');
+  const long = 'This is a sentence about the knight. '.repeat(20).trim();
+  const chunks = chunkText(long, 120);
+  ok(chunks.length > 1 && chunks.every((c) => c.length <= 120), 'long text chunked for the speech queue');
+  ok(chunks.join(' ') === long, 'chunking loses no words');
+  ok(chunkText('One. Two. Three.', 9).length === 2, 'chunks pack whole sentences');
+  ok(chunkText(speakableText('<p>Hi.</p>')).join('') === 'Hi.', 'short text stays whole');
+  // every lesson step must survive the conversion with something to say
+  for (const lesson of LESSONS) {
+    for (const step of lesson.steps) {
+      const text = speakableText(step.text);
+      ok(text.length > 0 && !/[<>]/.test(text), `${lesson.id}: step text not speakable`);
+    }
+  }
+}
 
 state.update('puzzles', (p) => { p.rating = 1337; });
 ok(state.get().puzzles.rating === 1337, 'state update');

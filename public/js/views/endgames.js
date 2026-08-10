@@ -1,8 +1,9 @@
 // Endgames: theory + play-out drills vs Stockfish with blunder warnings.
 import { Chess } from '../../vendor/chess.js';
-import { el, clear, toast, uciFrom, uciTo, opposite } from '../util.js';
+import { el, clear, toast, uciFrom, uciTo, opposite, isRecapture } from '../util.js';
 import { Board, applyUci } from '../board.js';
 import { engine } from '../engine.js';
+import { thinkingMs, remainingMs } from '../pacing.js';
 import * as state from '../state.js';
 import { SECTIONS, DRILLS, drillsBySection, findDrill } from '../content/endgames.js';
 
@@ -11,6 +12,7 @@ let D = null; // active drill state
 let timers = [];
 function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
 function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+const pause = (ms) => new Promise((resolve) => (ms > 0 ? later(resolve, ms) : resolve()));
 
 export async function render(container, { path }) {
   if (path[0]) return renderDrill(container, path[0]);
@@ -126,10 +128,21 @@ async function engineMove() {
   if (D.over || turnColor() !== D.engineColor) return;
   D.thinking = true;
   const fen = D.chess.fen();
+  const startedAt = Date.now();
   try {
     const uci = await engine.bestMove(fen, [], { skill: 20, movetime: 320 });
+    if (!D || D.over || !uci || D.chess.fen() !== fen) { if (D) D.thinking = false; return; }
+    // Defend at a human tempo rather than snapping the reply back instantly.
+    await pause(remainingMs(thinkingMs({
+      pace: state.get().settings.enginePace,
+      level: 6,
+      legalMoves: D.chess.moves().length,
+      fen,
+      recapture: isRecapture(D.chess, uci),
+    }), Date.now() - startedAt));
+    if (!D) return;
     D.thinking = false;
-    if (D.over || !uci || D.chess.fen() !== fen) return;
+    if (D.over || D.chess.fen() !== fen) return;
     const mv = applyUci(D.chess, uci);
     if (!mv) return;
     D.plies++;
@@ -137,6 +150,7 @@ async function engineMove() {
     if (checkGameEnd()) return;
     if (!D.warned) status('play');
   } catch (e) {
+    if (!D) return;
     D.thinking = false;
     toast('Engine error — try reloading', 'bad');
   }

@@ -74,6 +74,13 @@ export const uciFrom = (uci) => uci.slice(0, 2);
 export const uciTo = (uci) => uci.slice(2, 4);
 export const uciPromo = (uci) => uci.slice(4) || undefined;
 
+// Does this uci move take back on the square the last move captured on?
+// (Recaptures are the moves humans play fastest — see pacing.js.)
+export function isRecapture(chess, uci) {
+  const last = chess.history({ verbose: true }).slice(-1)[0];
+  return !!(last && last.captured && uciTo(uci) === last.to);
+}
+
 export function fenTurn(fen) { return fen.split(' ')[1] === 'w' ? 'white' : 'black'; }
 export function opposite(color) { return color === 'white' ? 'black' : 'white'; }
 

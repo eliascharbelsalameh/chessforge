@@ -3,6 +3,7 @@ import { Chess } from '../../vendor/chess.js';
 import { el, clear, uciFrom, uciTo } from '../util.js';
 import { Board } from '../board.js';
 import * as state from '../state.js';
+import { speech, sanToWords, voiceOptions } from '../speech.js';
 import { TRACKS, LESSONS, lessonsByTrack, findLesson, nextLesson } from '../content/lessons.js';
 import { THEMES } from '../content/themes.js';
 
@@ -11,6 +12,80 @@ let L = null;
 let timers = [];
 function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
 function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+// ---- voiceover ----
+const voiceOn = () => !!state.get().settings.voiceover && speech.supported();
+const say = (text) => speech.speak(text, voiceOptions(state.get().settings));
+
+// Announce a move as a commentator would: "knight takes e 5, check".
+function announce(san) {
+  if (!voiceOn()) return;
+  const words = sanToWords(san);
+  if (words) say(words);
+}
+
+// Run fn once the current narration has finished (immediately if silent),
+// unless the lesson moved on in the meantime.
+function afterNarration(token, fn) {
+  const waitFor = voiceOn() && L && L.speaking ? L.speaking : Promise.resolve();
+  waitFor.then(() => { if (L && L.run === token) fn(); });
+}
+
+function panelKey() {
+  return `${L.stepIdx}|${L.stepDone ? 'done' : 'live'}|${L.fails}`;
+}
+
+// Let the current step be narrated from the top again (voice switched on
+// mid-step, or the repeat button).
+function replayStep() {
+  L.spokenKey = null;
+  L.textSpoken = false;
+}
+
+// Speak whatever the panel now shows — once per distinct panel state.
+function maybeSpeak() {
+  if (!voiceOn() || !L || L.stepIdx < 0 || L.stepIdx >= L.lesson.steps.length) return;
+  const key = panelKey();
+  if (L.spokenKey === key) return;
+  L.spokenKey = key;
+  const step = currentStep();
+
+  if (!L.textSpoken) {                       // the step itself, read once
+    L.textSpoken = true;
+    const parts = [step.text];
+    if (step.challenge && !step.moves) parts.push('Your move.');
+    L.speaking = say(parts.join(' '));
+  } else if (!L.stepDone && L.fails > 0) {   // a wrong try
+    const parts = ['Not quite — try again.'];
+    if (step.challenge && step.challenge.hint) parts.push(`Hint: ${step.challenge.hint}`);
+    L.speaking = say(parts.join(' '));
+  } else if (L.stepDone && step.challenge && step.challenge.success) {
+    L.speaking = say(step.challenge.success);
+  }
+}
+
+function voiceControls() {
+  const on = !!state.get().settings.voiceover;
+  const row = el('div', { class: 'voice-row' });
+  const toggle = el('button', {
+    class: `btn small ${on ? '' : 'ghost'}`,
+    text: on ? '🔊 Voice on' : '🔇 Voice off',
+    title: 'Read the lesson aloud (browser speech, nothing leaves your device)',
+  });
+  toggle.addEventListener('click', () => {
+    speech.cancel();
+    state.update('settings', (st) => { st.voiceover = !st.voiceover; });
+    replayStep();
+    renderPanel();
+  });
+  row.append(toggle);
+  if (on) {
+    const again = el('button', { class: 'btn small ghost', text: '↻', title: 'Read this step again' });
+    again.addEventListener('click', () => { speech.cancel(); replayStep(); maybeSpeak(); });
+    row.append(again);
+  }
+  return row;
+}
 
 export async function render(container, { path }) {
   if (path[0]) return renderLesson(container, path[0]);
@@ -54,6 +129,10 @@ function renderLesson(container, lessonId) {
     fails: 0,
     stepDone: false,
     busy: false,
+    run: 0,          // bumped on every step change; stale callbacks bail out
+    speaking: null,  // promise for the narration currently playing
+    spokenKey: null,
+    textSpoken: false,
   };
   const dom = {};
   L.dom = dom;
@@ -85,11 +164,14 @@ function currentStep() { return L.lesson.steps[L.stepIdx]; }
 
 function nextStep() {
   clearTimers();
+  speech.cancel();
+  L.run++;
   if (L.stepIdx + 1 >= L.lesson.steps.length) return finishLesson();
   L.stepIdx++;
   L.challengeIdx = 0;
   L.fails = 0;
   L.stepDone = false;
+  replayStep();
   const step = currentStep();
   if (step.fen) L.chess = new Chess(step.fen);
   if (step.pov) board.orient(step.pov);
@@ -100,7 +182,8 @@ function nextStep() {
   renderPanel();
   if (step.moves && step.moves.length) {
     L.busy = true;
-    playDemo([...step.moves]);
+    const token = L.run;
+    afterNarration(token, () => playDemo([...step.moves], token));
   } else if (step.challenge) {
     startChallenge();
   } else {
@@ -109,15 +192,18 @@ function nextStep() {
   }
 }
 
-function playDemo(queue) {
+function playDemo(queue, token) {
+  if (L.run !== token) return;
   if (!queue.length) { L.busy = false; L.stepDone = !currentStep().challenge; if (currentStep().challenge) startChallenge(); renderPanel(); return; }
   later(() => {
+    if (L.run !== token) return;
     const san = queue.shift();
     const mv = L.chess.move(san);
     board.sync(L.chess, { lastMove: [mv.from, mv.to], movableColor: null });
     renderPanel(san);
-    playDemo(queue);
-  }, 750);
+    announce(san);
+    playDemo(queue, token);
+  }, voiceOn() ? 1250 : 750);
 }
 
 function startChallenge() {
@@ -150,12 +236,15 @@ function challengeMove(from, to, promotion) {
       renderPanel();
     } else if (reply) {
       L.busy = true;
+      const token = L.run;
       later(() => {
+        if (L.run !== token) return;
         const mv = L.chess.move(reply);
         board.sync(L.chess, { lastMove: [mv.from, mv.to], movableColor: null });
+        announce(mv.san);
         L.busy = false;
         startChallenge();
-      }, 550);
+      }, voiceOn() ? 900 : 550);
     } else {
       startChallenge();
     }
@@ -171,6 +260,8 @@ function challengeMove(from, to, promotion) {
 }
 
 function finishLesson() {
+  speech.cancel();
+  if (voiceOn()) say('Lesson complete.');
   state.update('lessons', (l) => { l.done[L.lesson.id] = Date.now(); });
   const next = nextLesson(L.lesson.id);
   const dm = L.dom.panel;
@@ -193,6 +284,7 @@ function renderPanel(lastSan, wrong = false) {
   const step = currentStep();
   const dm = L.dom.panel;
   clear(dm);
+  if (speech.supported()) dm.append(voiceControls());
   dm.append(el('div', { class: 'prose', html: step.text }));
   if (step.moves && L.busy && lastSan) {
     dm.append(el('p', { class: 'muted small', text: `… ${lastSan}` }));
@@ -216,6 +308,7 @@ function renderPanel(lastSan, wrong = false) {
     L.stepDone = true;
   }
   updateProgress();
+  maybeSpeak();
 }
 
 function prevStep() {
@@ -249,6 +342,7 @@ function btn(label, fn, cls = '') {
 
 export function destroy() {
   clearTimers();
+  speech.cancel();
   if (board) { board.destroy(); board = null; }
   L = null;
 }
