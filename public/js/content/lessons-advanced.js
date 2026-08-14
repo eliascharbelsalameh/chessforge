@@ -36,7 +36,7 @@ export const ADVANCED = [
         text: '<b>Anastasia’s mate</b>: a knight on e7 seals g8 and g6; the rook arrives on the h-file. The queen clears the way with a classic sacrifice:',
         moves: ['Ne7+', 'Kh8', 'Qxh7+', 'Kxh7', 'Rh3#'] },
       { text: 'The pattern to memorize: <b>Ne7+ · Qxh7+!! · R(h-file)#</b>. The e7-knight is the unsung hero — it takes both escape squares. Look for it whenever the enemy king castles short and the h-file can open.' },
-      { fen: '7k/8/5N2/8/8/8/8/K6R w - - 0 1',
+      { fen: '7k/R7/5N2/8/8/8/8/K7 w - - 0 1',
         text: 'The <b>Arabian mate</b> — the oldest recorded mate pattern (9th century). Knight guards the corner’s exits; the rook walks in:',
         challenge: { line: ['Rh7#'], hint: 'The knight covers g8 — and protects the rook’s landing square.', success: 'Rook + knight in the corner: the knight is the only piece that both shields the rook and seals the escape. Ancient, and still everywhere.' } },
     ],

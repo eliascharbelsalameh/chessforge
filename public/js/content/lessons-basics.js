@@ -32,7 +32,7 @@ export const BASICS = [
       { fen: '7k/8/6QK/8/8/8/8/8 b - - 0 1',
         text: '<b>Stalemate</b> = the side to move is NOT in check but has no legal move. That is a DRAW — the cruelest rule in chess. Here Black is not in check, but every square around the king is covered. White, up a whole queen, just threw away the win.',
         shapes: [{ orig: 'g8', brush: 'red' }, { orig: 'h7', brush: 'red' }, { orig: 'g7', brush: 'red' }] },
-      { fen: '7k/8/5Q1K/8/8/8/8/8 w - - 0 1',
+      { fen: '7k/5Q2/7K/8/8/8/8/8 w - - 0 1',
         text: 'Your turn to do it right: deliver checkmate in one — and notice which tempting square would have been stalemate instead.',
         challenge: { line: ['Qf8#'], hint: 'A check the king cannot answer: last rank, protected approach.', success: 'Mate! (Qg7# also works.) The queen covers every flight square while the king watches.' } },
     ],

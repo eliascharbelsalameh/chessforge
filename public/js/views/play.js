@@ -36,8 +36,12 @@ export async function render(container, { query }) {
   dom = {};
   const presetFen = sessionStorage.getItem('play.fen');
   const presetColor = sessionStorage.getItem('play.color');
+  const presetLevel = Number(sessionStorage.getItem('play.level'));
+  const presetPosition = sessionStorage.getItem('play.positionId');
   sessionStorage.removeItem('play.fen');
   sessionStorage.removeItem('play.color');
+  sessionStorage.removeItem('play.level');
+  sessionStorage.removeItem('play.positionId');
 
   container.append(
     el('div', { class: 'page-head' }, el('h1', { text: 'Play vs engine' })),
@@ -51,8 +55,14 @@ export async function render(container, { query }) {
     animate: state.get().settings.animate,
   });
 
-  if (presetFen) startGame({ fen: presetFen, color: presetColor || fenTurn(presetFen), level: 4 });
-  else renderSetup();
+  if (presetFen) {
+    startGame({
+      fen: presetFen,
+      color: presetColor || fenTurn(presetFen),
+      level: presetLevel || state.get().play.lastLevel || 4,
+      positionId: presetPosition || null,
+    });
+  } else renderSetup();
 }
 
 function renderSetup() {
@@ -98,7 +108,7 @@ function renderSetup() {
   board.setFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
 }
 
-function startGame({ fen, color, level }) {
+function startGame({ fen, color, level, positionId = null }) {
   let chess;
   try { chess = fen ? new Chess(fen) : new Chess(); } catch { chess = new Chess(); }
   G = {
@@ -111,6 +121,9 @@ function startGame({ fen, color, level }) {
     resultSaved: false,
     startFen: chess.fen(),
     sans: [],
+    // set when the game started from a saved board-editor position, so the
+    // result can be scored back onto it (see views/positions.js)
+    positionId,
   };
   state.update('play', (p) => { p.lastLevel = level; });
   board.orient(color);
@@ -201,6 +214,16 @@ function saveResult(result) {
     p.games.push({ color: G.color, level: G.level.n, result, ts: Date.now() });
     if (p.games.length > 200) p.games = p.games.slice(-150);
   });
+  if (G.positionId) {
+    state.update('positions', (p) => {
+      const item = p.items.find((i) => i.id === G.positionId);
+      if (!item) return;
+      item.plays = (item.plays || 0) + 1;
+      const key = result === 'win' ? 'wins' : result === 'loss' ? 'losses' : 'draws';
+      item[key] = (item[key] || 0) + 1;
+      item.lastPlayed = Date.now();
+    });
+  }
 }
 
 function resign() {
@@ -238,6 +261,11 @@ function takeback() {
 function renderGamePanel(endText, endResult) {
   clear(dom.panel);
   const statusCard = el('div', { class: 'card' });
+  const saved = G.positionId ? state.get().positions.items.find((i) => i.id === G.positionId) : null;
+  if (saved) {
+    statusCard.append(el('p', { class: 'small muted', style: 'margin:0 0 .5rem' },
+      '📚 ', el('a', { href: '#/positions', text: saved.name }), ' · from your library'));
+  }
   if (endText) {
     statusCard.append(el('div', {
       class: `result-banner ${endResult === 'win' ? 'good' : endResult === 'loss' ? 'bad' : ''}`,
@@ -246,7 +274,12 @@ function renderGamePanel(endText, endResult) {
     statusCard.append(el('div', { class: 'btn-row mt' },
       btn('New game', () => { G = null; renderSetup(); }, 'primary'),
       btn('Analyze game', analyzeGame, ''),
-      btn('Rematch', () => startGame({ fen: G.startFen === new Chess().fen() ? null : G.startFen, color: G.color, level: G.level.n }), 'ghost')));
+      btn('Rematch', () => startGame({
+        fen: G.startFen === new Chess().fen() ? null : G.startFen,
+        color: G.color,
+        level: G.level.n,
+        positionId: G.positionId,
+      }), 'ghost')));
   } else {
     const pondering = G.thinking || G.waiting;
     statusCard.append(el('div', { class: 'status-line' },

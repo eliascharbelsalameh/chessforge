@@ -113,6 +113,7 @@ export function svgIcon(name) {
     endgames: '<path d="M4 22V4"/><path d="M4 4s1-1 4-1 4 2 8 2 4-1 4-1v11s-1 1-4 1-4-2-8-2-4 1-4 1"/>',
     lessons: '<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12.5V17c3 2.5 9 2.5 12 0v-4.5"/>',
     play: '<polygon points="6 3 20 12 6 21 6 3"/>',
+    positions: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',
     analysis: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
     settings: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M1 14h6M9 8h6M17 16h6"/>',
     flip: '<path d="M17 2v6h-6"/><path d="M3 11a9 9 0 0 1 14-6.5L17 8"/><path d="M7 22v-6h6"/><path d="M21 13a9 9 0 0 1-14 6.5L7 16"/>',

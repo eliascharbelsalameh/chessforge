@@ -525,6 +525,82 @@ textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, SFMono
   .thinking .dots::after { animation: none; clip-path: none; }
 }
 
+/* board editor (Positions) */
+.editor-col { flex-direction: column; gap: 0.5rem; }
+.editor-col .board-wrap { flex: 0 0 auto; }
+.editor-hint { margin: 0; }
+.spare-bar {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.spare-bar piece {
+  position: relative; /* vendored .cg-wrap piece is absolutely placed */
+  display: block;
+  flex: 1 1 0;
+  max-width: 52px;
+  aspect-ratio: 1;
+  pointer-events: auto; /* vendored .cg-wrap piece sets none */
+  background-size: cover;
+  background-color: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: grab;
+  touch-action: none;
+}
+.spare-bar piece:hover { background-color: var(--surface-3); }
+.spare-tool {
+  flex: 0 0 auto;
+  width: 38px;
+  aspect-ratio: 1;
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+.spare-bar piece.selected, .spare-bar .spare-tool.selected {
+  border-color: var(--accent);
+  background-color: var(--accent-dim);
+}
+.setup-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.7rem; }
+.setup-row.stack { flex-direction: column; align-items: stretch; gap: 0.4rem; }
+.setup-row .lbl { font-size: 0.85rem; color: var(--muted); min-width: 4.5rem; }
+.setup-status { margin-top: 0.9rem; display: flex; flex-direction: column; gap: 0.15rem; }
+.setup-status .ok-line { color: var(--good-strong); }
+.setup-status .bad-line { color: var(--bad); }
+.setup-status .warn-line { color: var(--accent-strong); }
+
+/* saved position library */
+.pos-grid { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); }
+.pos-card {
+  display: flex;
+  gap: 0.7rem;
+  padding: 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.pos-card.current { border-color: var(--accent); }
+.pos-card .pos-body { flex: 1; min-width: 0; }
+.pos-card .pos-title { font-weight: 600; overflow-wrap: anywhere; }
+.mini-board {
+  flex: 0 0 104px;
+  width: 104px;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  /* one conic tile = 2x2 squares, tiled 4x4 => a light-cornered 8x8 board */
+  background-image: conic-gradient(#b58863 0 90deg, #f0d9b5 0 180deg, #b58863 0 270deg, #f0d9b5 0);
+  background-size: 25% 25%;
+}
+
 /* lesson voiceover controls */
 .voice-row { display: flex; justify-content: flex-end; gap: 0.35rem; margin-bottom: 0.5rem; }
 

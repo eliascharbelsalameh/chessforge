@@ -26,6 +26,7 @@ const util = await import('../public/js/util.js');
 const state = await import('../public/js/state.js');
 const pacing = await import('../public/js/pacing.js');
 const speechMod = await import('../public/js/speech.js');
+const setup = await import('../public/js/setup.js');
 
 // ---------- 1. repertoire lines replay ----------
 console.log('\n[1] Repertoires');
@@ -231,6 +232,79 @@ ok(e.idx === INTERVALS.length - 1, 'srs caps at max interval');
     for (const step of lesson.steps) {
       const text = speakableText(step.text);
       ok(text.length > 0 && !/[<>]/.test(text), `${lesson.id}: step text not speakable`);
+    }
+  }
+}
+
+// board editor: FEN assembly + legality checks
+{
+  const {
+    START_FEN, EMPTY_FEN, placementFromPieces, piecesFromPlacement, castlingAvailable,
+    castlingString, parseCastling, buildFen, epValid, validate, materialLine, describe, countPieces,
+  } = setup;
+  const startPlacement = START_FEN.split(' ')[0];
+
+  // placement <-> piece map round-trips
+  ok(placementFromPieces(piecesFromPlacement(START_FEN)) === startPlacement, 'start position round-trips through the editor');
+  const lucena = '1K1k4/1P6/8/8/8/8/r7/2R5 w - - 0 1';
+  ok(placementFromPieces(piecesFromPlacement(lucena)) === lucena.split(' ')[0], 'sparse endgame round-trips');
+  ok(piecesFromPlacement(EMPTY_FEN).size === 0, 'empty board has no pieces');
+  const map = piecesFromPlacement(START_FEN);
+  ok(map.get('e1').role === 'king' && map.get('e1').color === 'white', 'white king read off e1');
+  ok(map.get('d8').role === 'queen' && map.get('d8').color === 'black', 'black queen read off d8');
+  ok(map.size === 32, 'start position has 32 pieces');
+
+  // castling rights follow the pieces on the board
+  const avail = castlingAvailable(startPlacement);
+  ok(avail.K && avail.Q && avail.k && avail.q, 'all castling available from the start');
+  ok(!castlingAvailable('4k3/8/8/8/8/8/8/R3K3').K, 'no kingside right without the h1 rook');
+  ok(castlingAvailable('4k3/8/8/8/8/8/8/R3K3').Q, 'queenside right with the a1 rook');
+  ok(castlingString({ K: true, q: true }) === 'Kq' && castlingString({}) === '-', 'castling field built');
+  ok(parseCastling('Kq').K && parseCastling('Kq').q && !parseCastling('Kq').Q, 'castling field parsed');
+
+  // buildFen only claims rights the layout supports
+  const built = buildFen({ placement: '4k3/8/8/8/8/8/8/R3K3', turn: 'b', rights: { K: true, Q: true, k: true, q: true } });
+  ok(built === '4k3/8/8/8/8/8/8/R3K3 b Q - 0 1', `impossible rights dropped (got ${built})`);
+  ok(buildFen({ placement: startPlacement, rights: avail }) === START_FEN, 'the start layout rebuilds the start FEN');
+  ok(buildFen({ placement: startPlacement }).includes(' w - - '), 'castling defaults to none until asked for');
+  ok(buildFen({ placement: startPlacement, halfmove: -4, fullmove: 0 }).endsWith(' 0 1'), 'move counters clamped');
+
+  // en passant is kept only when a pawn could actually have just double-stepped
+  ok(epValid('rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR', 'w', 'c6'), 'ep square accepted');
+  ok(!epValid('rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR', 'b', 'c6'), 'ep square rejected for the wrong side');
+  ok(!epValid(startPlacement, 'w', 'c6'), 'ep square rejected with no pawn behind it');
+  ok(buildFen({ placement: startPlacement, ep: 'e6' }).includes(' - 0 1'), 'bogus ep dropped from the FEN');
+
+  // validation of hand-made positions
+  const good = validate(START_FEN);
+  ok(good.ok && good.playable && !good.errors.length, 'start position validates');
+  ok(!validate('8/8/8/8/8/8/8/8 w - - 0 1').ok, 'empty board is not playable');
+  ok(validate('8/8/8/8/8/8/8/4K3 w - - 0 1').errors.some((e) => /Black needs a king/.test(e)), 'missing black king reported');
+  ok(validate('4k3/8/8/8/8/8/8/4KK2 w - - 0 1').errors.some((e) => /2 kings/.test(e)), 'two white kings reported');
+  ok(validate('4k2P/8/8/8/8/8/8/4K3 w - - 0 1').errors.some((e) => /Pawns cannot stand/.test(e)), 'pawn on the 8th rank reported');
+  ok(validate('4k3/8/8/8/8/8/8/R3K3 b - - 0 1').ok, 'quiet position with black to move is fine');
+  ok(validate('4k3/4R3/8/8/8/8/8/4K3 b - - 0 1').ok, 'checking the side to move is legal');
+  const leftInCheck = validate('4k3/4R3/8/8/8/8/8/4K3 w - - 0 1');
+  ok(!leftInCheck.ok && leftInCheck.errors.some((e) => /in check but it is/.test(e)), 'side that just moved cannot be left in check');
+  const quiet = validate('6k1/5ppp/8/8/8/8/8/R5K1 b - - 0 1');
+  ok(quiet.ok && quiet.playable, 'ordinary position is playable');
+  const done = validate('7k/5KQ1/8/8/8/8/8/8 b - - 0 1');
+  ok(done.ok && !done.playable && done.over === 'checkmate', 'finished position is legal but not playable');
+  ok(done.warnings.some((w) => /already over/.test(w)), 'checkmate warned about');
+  ok(validate('4k3/8/8/8/8/8/8/4K3 w - - 0 1').over === 'insufficient material', 'bare kings flagged');
+  ok(validate('4k3/8/8/8/8/8/PPPPPPPPP/4K3 w - - 0 1').errors.length > 0, 'nine pawns on a rank rejected');
+
+  // material shorthand used by the library cards
+  ok(materialLine(START_FEN) === 'K+Q+2R+2B+2N+8P vs K+Q+2R+2B+2N+8P', `start material line (got ${materialLine(START_FEN)})`);
+  ok(materialLine(lucena) === 'K+R+P vs K+R', `Lucena material line (got ${materialLine(lucena)})`);
+  ok(describe(lucena).startsWith('White to move · '), 'description names the side to move');
+  ok(countPieces(START_FEN).whiteTotal === 16 && countPieces(lucena).blackTotal === 2, 'piece counts');
+
+  // every position the app ships must survive the editor's own validator
+  for (const d of DRILLS) ok(validate(d.fen).ok, `${d.id}: drill FEN rejected by the position editor`);
+  for (const lesson of LESSONS) {
+    for (const [i, step] of lesson.steps.entries()) {
+      if (step.fen) ok(validate(step.fen).ok, `${lesson.id} step ${i + 1}: diagram FEN rejected by the position editor`);
     }
   }
 }
