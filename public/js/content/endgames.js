@@ -188,7 +188,7 @@ export const DRILLS = [
   },
   {
     id: 'ocb-fortress', section: 'fortress', title: 'Opposite bishops: the blockade', goal: 'draw', side: 'black',
-    fen: '3b1k2/8/4P3/5PK1/2B5/8/8/8 b - - 0 1',
+    fen: '3b1k2/8/4P3/5P2/2B3K1/8/8/8 b - - 0 1',
     theory: `<p>Two pawns down — completely lost? Not with opposite-colored bishops! The pawns must cross <b>dark squares</b> (e7, f6) and White’s light bishop can never fight for them.</p>
 <ol><li>Your bishop alone covers both e7 and f6 from d8 (one diagonal!).</li>
 <li>Keep the king on f8/g7 area, bishop on the d8–h4 diagonal.</li>

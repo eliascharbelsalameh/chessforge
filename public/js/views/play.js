@@ -1,20 +1,47 @@
 // Play a full game against Stockfish at a chosen strength.
 import { Chess } from '../../vendor/chess.js';
-import { el, clear, toast, opposite, uciFrom, uciTo, fenTurn } from '../util.js';
+import { el, clear, toast, opposite, uciFrom, uciTo, fenTurn, isRecapture } from '../util.js';
 import { Board, applyUci } from '../board.js';
 import { engine, LEVELS } from '../engine.js';
+import { thinkingMs, remainingMs } from '../pacing.js';
 import * as state from '../state.js';
 
 let board = null;
 let G = null;
 let dom = {};
+let paceTimer = null;
+let paceResolve = null;
+
+// The pause an engine move sits out before it lands. cancelPause() cuts it
+// short (take back, resign, leaving the page); the caller re-checks the game
+// state after the await, so a cut-short move is simply dropped.
+function pause(ms) {
+  cancelPause();
+  return new Promise((resolve) => {
+    if (ms <= 0) { resolve(); return; }
+    paceResolve = resolve;
+    paceTimer = setTimeout(() => { paceTimer = null; paceResolve = null; resolve(); }, ms);
+  });
+}
+
+function cancelPause() {
+  clearTimeout(paceTimer);
+  paceTimer = null;
+  const resolve = paceResolve;
+  paceResolve = null;
+  if (resolve) resolve();
+}
 
 export async function render(container, { query }) {
   dom = {};
   const presetFen = sessionStorage.getItem('play.fen');
   const presetColor = sessionStorage.getItem('play.color');
+  const presetLevel = Number(sessionStorage.getItem('play.level'));
+  const presetPosition = sessionStorage.getItem('play.positionId');
   sessionStorage.removeItem('play.fen');
   sessionStorage.removeItem('play.color');
+  sessionStorage.removeItem('play.level');
+  sessionStorage.removeItem('play.positionId');
 
   container.append(
     el('div', { class: 'page-head' }, el('h1', { text: 'Play vs engine' })),
@@ -28,8 +55,14 @@ export async function render(container, { query }) {
     animate: state.get().settings.animate,
   });
 
-  if (presetFen) startGame({ fen: presetFen, color: presetColor || fenTurn(presetFen), level: 4 });
-  else renderSetup();
+  if (presetFen) {
+    startGame({
+      fen: presetFen,
+      color: presetColor || fenTurn(presetFen),
+      level: presetLevel || state.get().play.lastLevel || 4,
+      positionId: presetPosition || null,
+    });
+  } else renderSetup();
 }
 
 function renderSetup() {
@@ -75,7 +108,7 @@ function renderSetup() {
   board.setFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
 }
 
-function startGame({ fen, color, level }) {
+function startGame({ fen, color, level, positionId = null }) {
   let chess;
   try { chess = fen ? new Chess(fen) : new Chess(); } catch { chess = new Chess(); }
   G = {
@@ -84,9 +117,13 @@ function startGame({ fen, color, level }) {
     level: LEVELS.find((l) => l.n === level) || LEVELS[2],
     over: false,
     thinking: false,
+    waiting: false,
     resultSaved: false,
     startFen: chess.fen(),
     sans: [],
+    // set when the game started from a saved board-editor position, so the
+    // result can be scored back onto it (see views/positions.js)
+    positionId,
   };
   state.update('play', (p) => { p.lastLevel = level; });
   board.orient(color);
@@ -114,10 +151,27 @@ async function engineTurn() {
   G.thinking = true;
   renderGamePanel();
   const fen = G.chess.fen();
+  const startedAt = Date.now();
   try {
     const uci = await engine.bestMove(fen, [], { skill: G.level.skill, movetime: G.level.movetime });
+    if (!G || G.over || !uci || G.chess.fen() !== fen) { if (G) G.thinking = false; return; }
+    // Sit on the move for as long as a person would have taken over it.
+    const target = thinkingMs({
+      pace: state.get().settings.enginePace,
+      level: G.level.n,
+      legalMoves: G.chess.moves().length,
+      fen,
+      recapture: isRecapture(G.chess, uci),
+    });
+    // The search is done — from here it is only the pause, so let the player
+    // take the move back or resign while the "opponent" appears to ponder.
     G.thinking = false;
-    if (!G || G.over || !uci || G.chess.fen() !== fen) return;
+    G.waiting = true;
+    renderGamePanel();
+    await pause(remainingMs(target, Date.now() - startedAt));
+    if (!G) return;
+    G.waiting = false;
+    if (G.over || G.chess.fen() !== fen) return;
     const mv = applyUci(G.chess, uci);
     if (mv) {
       G.sans.push(mv.san);
@@ -126,7 +180,9 @@ async function engineTurn() {
     renderGamePanel();
     checkEnd();
   } catch {
+    if (!G) return;
     G.thinking = false;
+    G.waiting = false;
     toast('Engine error', 'bad');
   }
 }
@@ -158,10 +214,21 @@ function saveResult(result) {
     p.games.push({ color: G.color, level: G.level.n, result, ts: Date.now() });
     if (p.games.length > 200) p.games = p.games.slice(-150);
   });
+  if (G.positionId) {
+    state.update('positions', (p) => {
+      const item = p.items.find((i) => i.id === G.positionId);
+      if (!item) return;
+      item.plays = (item.plays || 0) + 1;
+      const key = result === 'win' ? 'wins' : result === 'loss' ? 'losses' : 'draws';
+      item[key] = (item[key] || 0) + 1;
+      item.lastPlayed = Date.now();
+    });
+  }
 }
 
 function resign() {
   if (!G || G.over) return;
+  cancelPause();
   G.over = true;
   saveResult('loss');
   renderGamePanel('You resigned.', 'loss');
@@ -179,6 +246,7 @@ async function hint() {
 
 function takeback() {
   if (!G || G.thinking) return;
+  cancelPause();
   const u1 = G.chess.undo();
   if (u1) G.sans.pop();
   if (u1 && turnColor() !== G.color) { const u2 = G.chess.undo(); if (u2) G.sans.pop(); }
@@ -193,6 +261,11 @@ function takeback() {
 function renderGamePanel(endText, endResult) {
   clear(dom.panel);
   const statusCard = el('div', { class: 'card' });
+  const saved = G.positionId ? state.get().positions.items.find((i) => i.id === G.positionId) : null;
+  if (saved) {
+    statusCard.append(el('p', { class: 'small muted', style: 'margin:0 0 .5rem' },
+      '📚 ', el('a', { href: '#/positions', text: saved.name }), ' · from your library'));
+  }
   if (endText) {
     statusCard.append(el('div', {
       class: `result-banner ${endResult === 'win' ? 'good' : endResult === 'loss' ? 'bad' : ''}`,
@@ -201,11 +274,19 @@ function renderGamePanel(endText, endResult) {
     statusCard.append(el('div', { class: 'btn-row mt' },
       btn('New game', () => { G = null; renderSetup(); }, 'primary'),
       btn('Analyze game', analyzeGame, ''),
-      btn('Rematch', () => startGame({ fen: G.startFen === new Chess().fen() ? null : G.startFen, color: G.color, level: G.level.n }), 'ghost')));
+      btn('Rematch', () => startGame({
+        fen: G.startFen === new Chess().fen() ? null : G.startFen,
+        color: G.color,
+        level: G.level.n,
+        positionId: G.positionId,
+      }), 'ghost')));
   } else {
+    const pondering = G.thinking || G.waiting;
     statusCard.append(el('div', { class: 'status-line' },
       el('span', { class: `turn-dot ${turnColor()}` }),
-      el('strong', { text: G.thinking ? 'Engine thinking…' : (turnColor() === G.color ? 'Your move' : '…') }),
+      pondering
+        ? el('strong', { class: 'thinking' }, 'Engine thinking', el('span', { class: 'dots' }))
+        : el('strong', { text: turnColor() === G.color ? 'Your move' : '…' }),
       el('span', { class: 'muted small', text: `· Level ${G.level.n}` })));
     statusCard.append(el('div', { class: 'btn-row mt' },
       btn('Hint', hint, 'ghost'),
@@ -241,6 +322,7 @@ function btn(label, fn, cls = '') {
 
 export function destroy() {
   engine.stopSearch();
+  cancelPause();
   if (board) { board.destroy(); board = null; }
   G = null;
 }

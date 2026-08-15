@@ -1,6 +1,10 @@
 // Settings: preferences, cross-device sync, backup, licenses.
 import { el, clear, toast, modal } from '../util.js';
 import * as state from '../state.js';
+import { PACES, DEFAULT_PACE } from '../pacing.js';
+import { speech, voiceOptions } from '../speech.js';
+
+const SAMPLE = '<p>After <b>1.e4 e5</b>, <b>Nf3</b> attacks the pawn — and if <b>Nxe5</b>, <b>Qe2</b> pins.</p>';
 
 export async function render(container) {
   const s = state.get();
@@ -9,6 +13,61 @@ export async function render(container) {
     state.update('settings', (st) => { st.showDests = v; }));
   const animate = toggle('Animate pieces', s.settings.animate, (v) =>
     state.update('settings', (st) => { st.animate = v; }));
+  // ---- engine pacing ----
+  const paceSel = el('select', {}, PACES.map((p) => el('option', { value: p.id, text: p.label })));
+  paceSel.value = PACES.some((p) => p.id === s.settings.enginePace) ? s.settings.enginePace : DEFAULT_PACE;
+  const paceBlurb = el('p', { class: 'muted small' });
+  const showBlurb = () => {
+    paceBlurb.textContent = (PACES.find((p) => p.id === paceSel.value) || {}).blurb || '';
+  };
+  showBlurb();
+  paceSel.addEventListener('change', () => {
+    state.update('settings', (st) => { st.enginePace = paceSel.value; });
+    showBlurb();
+  });
+
+  // ---- lesson voiceover ----
+  const voiceSel = el('select', {}, el('option', { value: '', text: 'Browser default voice' }));
+  const rate = el('input', { type: 'range', min: '0.6', max: '1.4', step: '0.05' });
+  rate.value = String(s.settings.voiceRate || 1);
+  const rateLabel = el('span', { class: 'muted small', text: `${Number(rate.value).toFixed(2)}×` });
+  rate.addEventListener('input', () => { rateLabel.textContent = `${Number(rate.value).toFixed(2)}×`; });
+  rate.addEventListener('change', () => state.update('settings', (st) => { st.voiceRate = Number(rate.value); }));
+  voiceSel.addEventListener('change', () => state.update('settings', (st) => { st.voiceURI = voiceSel.value; }));
+
+  const voiceover = toggle('Read lessons aloud', s.settings.voiceover, (v) =>
+    state.update('settings', (st) => { st.voiceover = v; }));
+
+  const testBtn = el('button', { class: 'btn small', text: '▶ Test voice' });
+  testBtn.addEventListener('click', () => {
+    speech.speak(SAMPLE, voiceOptions(state.get().settings));
+  });
+
+  const voiceNote = el('p', { class: 'muted small' });
+  const voiceCard = el('div', { class: 'card' },
+    el('h3', { text: 'Lesson voiceover' }),
+    el('p', { class: 'muted small', text: 'Lessons can be read aloud, with moves spoken as commentary ("knight takes e 5, check"). Uses your browser\'s built-in speech — no audio is sent anywhere.' }),
+    voiceover,
+    el('label', { class: 'field mt' }, el('span', { text: 'Voice' }), voiceSel),
+    el('label', { class: 'field' }, el('span', { text: 'Speed' }), el('div', { class: 'row' }, rate, rateLabel)),
+    el('div', { class: 'row' }, testBtn, voiceNote));
+
+  if (!speech.supported()) {
+    voiceNote.textContent = 'This browser has no speech synthesis.';
+    [voiceSel, rate, testBtn].forEach((n) => { n.disabled = true; });
+  } else {
+    speech.voices().then((list) => {
+      if (!list.length) {
+        voiceNote.textContent = 'No voices installed for this browser yet.';
+        return;
+      }
+      const sorted = [...list].sort((a, b) =>
+        (b.lang.startsWith('en') - a.lang.startsWith('en')) || a.name.localeCompare(b.name));
+      for (const v of sorted) voiceSel.append(el('option', { value: v.voiceURI, text: `${v.name} (${v.lang})` }));
+      voiceSel.value = list.some((v) => v.voiceURI === s.settings.voiceURI) ? s.settings.voiceURI : '';
+    });
+  }
+
   const autoSync = toggle('Sync progress with server (all your devices share one profile)', s.settings.autoSync, (v) => {
     state.update('settings', (st) => { st.autoSync = v; });
     if (v) doSync();
@@ -70,7 +129,10 @@ export async function render(container) {
     el('div', { class: 'page-head' }, el('h1', { text: 'Settings' })),
     el('div', { class: 'card' },
       el('h3', { text: 'Board & play' }),
-      showDests, animate),
+      showDests, animate,
+      el('label', { class: 'field mt' }, el('span', { text: 'Engine move speed' }), paceSel),
+      paceBlurb),
+    voiceCard,
     el('div', { class: 'card' },
       el('h3', { text: 'Cross-device sync' }),
       el('p', { class: 'muted small', text: 'Progress saves in this browser and syncs to your server, so phone, tablet and laptop continue from the same place.' }),

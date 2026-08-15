@@ -7,6 +7,7 @@ import * as openings from './views/openings.js';
 import * as endgames from './views/endgames.js';
 import * as lessons from './views/lessons.js';
 import * as play from './views/play.js';
+import * as positions from './views/positions.js';
 import * as analysis from './views/analysis.js';
 import * as settings from './views/settings.js';
 
@@ -17,6 +18,7 @@ const routes = {
   endgames,
   lessons,
   play,
+  positions,
   analysis,
   settings,
 };
@@ -28,6 +30,7 @@ const NAV = [
   ['endgames', 'Endgames', 'endgames'],
   ['lessons', 'Lessons', 'lessons'],
   ['play', 'Play', 'play'],
+  ['positions', 'Positions', 'positions'],
   ['analysis', 'Analysis', 'analysis'],
   ['settings', 'Settings', 'settings'],
 ];

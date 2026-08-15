@@ -74,6 +74,13 @@ export const uciFrom = (uci) => uci.slice(0, 2);
 export const uciTo = (uci) => uci.slice(2, 4);
 export const uciPromo = (uci) => uci.slice(4) || undefined;
 
+// Does this uci move take back on the square the last move captured on?
+// (Recaptures are the moves humans play fastest — see pacing.js.)
+export function isRecapture(chess, uci) {
+  const last = chess.history({ verbose: true }).slice(-1)[0];
+  return !!(last && last.captured && uciTo(uci) === last.to);
+}
+
 export function fenTurn(fen) { return fen.split(' ')[1] === 'w' ? 'white' : 'black'; }
 export function opposite(color) { return color === 'white' ? 'black' : 'white'; }
 
@@ -106,6 +113,7 @@ export function svgIcon(name) {
     endgames: '<path d="M4 22V4"/><path d="M4 4s1-1 4-1 4 2 8 2 4-1 4-1v11s-1 1-4 1-4-2-8-2-4 1-4 1"/>',
     lessons: '<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12.5V17c3 2.5 9 2.5 12 0v-4.5"/>',
     play: '<polygon points="6 3 20 12 6 21 6 3"/>',
+    positions: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',
     analysis: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
     settings: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M1 14h6M9 8h6M17 16h6"/>',
     flip: '<path d="M17 2v6h-6"/><path d="M3 11a9 9 0 0 1 14-6.5L17 8"/><path d="M7 22v-6h6"/><path d="M21 13a9 9 0 0 1-14 6.5L7 16"/>',
