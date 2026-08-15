@@ -1,0 +1,52 @@
+<title>Diagram Desk</title>
+<style>/*__VENDOR_CSS__*/</style>
+<style>/*__STYLE__*/</style>
+
+<div class="page">
+  <header class="masthead">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">♟</span>
+      <div class="brand-text">
+        <h1>Diagram Desk</h1>
+        <p class="tagline">Rebuild the position on the page you are reading — then play it out against the engine.</p>
+      </div>
+    </div>
+    <p class="storage-note" id="storage-note" hidden></p>
+  </header>
+
+  <main class="workbench">
+    <section class="board-col" aria-label="Board">
+      <div class="tray" id="tray-black"></div>
+      <div class="board-frame">
+        <div class="board-wrap" id="board"></div>
+      </div>
+      <div class="tray" id="tray-white"></div>
+      <p class="board-hint" id="board-hint"></p>
+    </section>
+    <aside class="panel" id="panel"></aside>
+  </main>
+
+  <section class="library-section" aria-label="Saved positions">
+    <div class="section-head">
+      <h2 class="eyebrow">Library</h2>
+      <span class="rule" aria-hidden="true"></span>
+      <span class="count" id="lib-count"></span>
+      <div class="section-actions">
+        <button class="btn tiny ghost" id="btn-import" type="button">Import</button>
+        <button class="btn tiny ghost" id="btn-export" type="button">Export</button>
+      </div>
+    </div>
+    <div id="library"></div>
+  </section>
+
+  <footer class="colophon">
+    <p>Everything here runs in this page — the board, the engine, and your library. Nothing is sent anywhere.</p>
+  </footer>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast-root" aria-live="polite"></div>
+
+<script>/*__CHESSJS__*/</script>
+<script>/*__CHESSGROUND__*/</script>
+<script>/*__APP__*/</script>

@@ -3,3 +3,6 @@ userdata/
 
 node_modules/
 *.log
+
+# built artifact page — regenerate with tools/diagram-desk/build.mjs
+tools/diagram-desk/diagram-desk.html
